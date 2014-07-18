@@ -7,11 +7,11 @@
     <title>Akka DistributedPubSubExtension • Eric Weise
     </title>
     <link rel="author" href="https://plus.google.com/118101720568210469158/posts">
-    <link rel="alternate" href="http://eweise.com/feed.xml" type="application/rss+xml" title="All things programming">
+    <link rel="alternate" href="http://eweise.github.io/feed.xml" type="application/rss+xml" title="All things programming">
     <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700,400italic,700italic|Source+Code+Pro">
-    <link rel="stylesheet" href="http://eweise.com/css/main.css">
-    <link rel="stylesheet" href="http://eweise.com/css/normalize.css">
-    <link rel="stylesheet" href="http://eweise.com/css/fontello.css">
+    <link rel="stylesheet" href="http://eweise.github.io/css/main.css">
+    <link rel="stylesheet" href="http://eweise.github.io/css/normalize.css">
+    <link rel="stylesheet" href="http://eweise.github.io/css/fontello.css">
     <script>(function(d){d.className=d.className.replace(/\bno-js\b/,'js');})(document.documentElement);</script>
     <!--if lt IE 9script(src='//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.6.2/html5shiv.js')
     -->
@@ -78,7 +78,7 @@
 </code></pre><h2 id="conclusion">Conclusion</h2>
 <p>A complete example that can run is available  <a href="https://github.com/eweise/akka-pubsub-cluster-example">here</a>. Try booting up multiple BackendService instances. You will notice that the router selects actors randomly which is the default but can be changed to other strategies including round-robin. One issue I see in the example is that a delay occurs handling requests when a BackendService leaves the cluster, potentially causing the WebService requests to timeout for a brief time. This could possibly be hardened by adding retry logic into the Webservice. Overall Akka provides an incredible amount of functionality and the contrib module builds on top of the core features to making implementing clustered services almost trivial.</p>
 </article>
-      <div class="content-share"><a href="https://twitter.com/eweise" data-show-count="false" class="twitter-follow-button">Follow @eweise</a><a href="https://twitter.com/share" data-url="http://eweise.com/articles/akka-cluster-example/" data-text="Akka DistributedPubSubExtension" data-via="eweise" class="twitter-share-button">Tweet</a></div>
+      <div class="content-share"><a href="https://twitter.com/eweise" data-show-count="false" class="twitter-follow-button">Follow @eweise</a><a href="https://twitter.com/share" data-url="http://eweise.github.io/articles/akka-cluster-example/" data-text="Akka DistributedPubSubExtension" data-via="eweise" class="twitter-share-button">Tweet</a></div>
     </main>
     <footer role="contentinfo" class="footer"><a href="/" title="Eric Weise" class="icon-home back-to-home"></a>
       <p class="container">
