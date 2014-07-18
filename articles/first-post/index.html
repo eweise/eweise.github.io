@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width">
+    <title>Building Clustered Services Using Akka • Eric Weise
+    </title>
+    <link rel="author" href="https://plus.google.com/118101720568210469158/posts">
+    <link rel="alternate" href="http://eweise.github.io/eweise/feed.xml" type="application/rss+xml" title="All things programming">
+    <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700,400italic,700italic|Source+Code+Pro">
+    <link rel="stylesheet" href="http://eweise.github.io/eweise/css/normalize.css">
+    <link rel="stylesheet" href="http://eweise.github.io/eweise/css/main.css">
+    <link rel="stylesheet" href="http://eweise.github.io/eweise/css/fontello.css">
+    <script>(function(d){d.className=d.className.replace(/\bno-js\b/,'js');})(document.documentElement);</script>
+    <!--if lt IE 9script(src='//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.6.2/html5shiv.js')
+    -->
+  </head>
+  <body class="article">
+    <h1>Eric Weise</h1><a href="/" title="Eric Weise" class="home icon-home back-to-home"></a>
+    <header class="header container"><small class="header-metadata"><span class="timestamp">June 21, 2014</span></small>
+      <h1 class="header-title">Building Clustered Services Using Akka</h1>
+    </header>
+    <main role="main" class="content container">
+      <article class="content-article"><p>If you are reading this article then you are probably already familiar with Akka and some of the capabilities it provides. But Akka is a fairly large framework and it is sometimes not clear how to set it up for your particular use case. In this example I will demonstrate how to set it up for a typically use case I have and which is probably fairly common. The scenario is when you have one actor that needs to call a second actor and the second actor need to be highly available. So let’s say you have an actor that handles http requests and it in turn calls a shopping cart actor which is remote. The shopping cart actor is part of the company’s e-commerce application and therefore it is on different production schedule than the http handling actor. The web application will typically be fronted by a load balancer so that we can have many web applications running. If we need to upgrade the web applications, we simply restart them one at a time so that there are always some running to handle the incoming traffic.
+Load balancing is the key to keeping our system alive while updating our system so it would be nice if Akka could provide this for us and indeed it does. But reading through the documentation</p>
+<h2 id="using-the-distributedpubsubmediator">Using the DistributedPubSubMediator</h2>
+<p>The DistributedPubSubMediator is an actor that maintains a registry of other ActorRefs and distributes them to peers around the network. This allows clients to refer actors by role instead of by a specific address. It also allows actors to join or unjoin the cluster and the mediator will track which actors are currently active.</p>
+<p><p>In our example we have two types of actors; a BackendService actor which represents some arbitrary function happening in the cluster and a WebService actor which handles http requests and in turn calls a BackendService to perform some work. The BackendService is stateless and there are many running in the cluster. The WebService just need to call any one BackendService to have the work performed.</p>
+<h3 id="backend-service-implementation">Backend Service Implementation</h3>
+<p>In our BackendServiceActor constructor we need to create a DistributedPubSubExtension actor and get a reference to its actorRef called the mediator.</p>
+<pre><code class="lang-scala">  <span class="keyword">val</span> mediator = DistributedPubSubExtension(context.system).mediator
+</code></pre>
+<p>Then we register our BackendServiceActor with the mediator. The mediator will in turn update all its peer mediators in the cluster that our BackendServiceActor has joined the cluster</p>
+<pre><code class="lang-scala">  mediator ! Put(self)
+</code></pre>
+<p>The BackendServiceActor will receive a SubscribeAck message once the mediator has added it to the mediator’s registry. Once that happens, the BackendServiceActor is ready to start receiving messages. Here is what the receive method loosks like</p>
+<pre><code class="lang-scala">     <span class="keyword">def</span> receive = {
+       <span class="keyword">case</span> SubscribeAck(Subscribe(<span class="string">"backend-service"</span>, None, `self`)) ⇒
+         println(<span class="string">"subscribed"</span>)
+       <span class="keyword">case</span> PerformWork =&gt;
+         log.info(<span class="string">"Backend Service is performing some work"</span>)
+         sender() ! OK
+       <span class="keyword">case</span> m@_ =&gt; log.warning(s<span class="string">"Backend Service received unknown message $m "</span>)
+</code></pre>
+<h2 id="the-web-service">The Web Service</h2>
+<p>For our Web service we will use Spray.io which is a library built on top of Akka that provides all the functionality we need to process http requests. To use Spray we create an actor that inherits from the HttpService trait.</p>
+<pre><code class="lang-scala">   <span class="class"><span class="keyword">class</span> <span class="title">WebServiceActor</span> <span class="keyword">extends</span> <span class="title">Actor</span> <span class="keyword">with</span> <span class="title">HttpService</span></span>
+</code></pre>
+<p>In the constructor of the WebService actor we are going to set up a pub sub actor extension that will provide the clustering and location transparency to the BackendService actors</p>
+<pre><code class="lang-scala">  <span class="keyword">val</span> actorRefFactory = context
+  <span class="keyword">val</span> mediator = DistributedPubSubExtension(context.system).mediator
+</code></pre>
+<p>Now to send a message to our backend, we simply call the mediator</p>
+<pre><code class="lang-scala">mediator ? Send(<span class="string">"/user/microservice"</span>, PerformWork, <span class="keyword">false</span>)
+</code></pre>
+<p>Notice that</p>
+<p>As with all actors we need to implement a ‘receive’ method. Our receive method will provide http routing information to Spray so it knows how to handle requests. Spray provides a DSL for doing this. In our example we implement just one route “dowork” in order to see our cluster in action</p>
+<pre><code class="lang-scala">     <span class="keyword">def</span> receive = runRoute {
+       path(<span class="string">"dowork"</span>) {
+         onComplete(mediator ? Send(<span class="string">"/user/microservice"</span>, PerformWork, <span class="keyword">false</span>)) {
+           <span class="keyword">case</span> Success(value) =&gt; complete(<span class="string">"OK"</span>)
+           <span class="keyword">case</span> Failure(e) =&gt; complete(e.getMessage)
+         }
+       }
+</code></pre>
+<p>We call the ‘path’ method passing in the route we are defining as well as the code that will be invoked when the route is called. Now the interesting part is</p>
+<pre><code class="lang-scala"> mediator ? Send(<span class="string">"/user/microservice"</span>, PerformWork, <span class="keyword">false</span>)
+</code></pre>
+<p>You use Akka by starting some actors</p>
+<pre><code class="lang-scala"><span class="keyword">val</span> x = <span class="number">0</span>
+<span class="keyword">def</span> foo(s:String):Unit = {
+    println(<span class="string">"helloworld"</span>)
+}
+</code></pre>
+</article>
+      <div class="content-share"><a href="https://twitter.com/eweise" data-show-count="false" class="twitter-follow-button">Follow @eweise</a><a href="https://twitter.com/share" data-url="http://eweise.github.io/eweise/eweise/articles/first-post/" data-text="Building Clustered Services Using Akka" data-via="eweise" class="twitter-share-button">Tweet</a></div>
+    </main>
+    <footer role="contentinfo" class="footer"><a href="/" title="Eric Weise" class="icon-home back-to-home"></a>
+      <p class="container">
+        &copy; 2014&nbsp;
+        &nbsp;&mdash; powered by&nbsp;<a href="https://github.com/jnordberg/wintersmith">Wintersmith</a>
+      </p>
+    </footer>
+  </body>
+</html>
