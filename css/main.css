@@ -235,7 +235,9 @@ table {
 table th,
 table td {
   padding: 0.55em 1.1em 0.4em;
+/*
   border: 1px solid #ccc;
+*/
 }
 
 table tr + tr th,
@@ -440,6 +442,8 @@ table tr:hover td {
     padding-top: 0;
     padding-bottom: 1em;
   }
+    
+
 
   #disqus_thread {
     display: none;
@@ -453,4 +457,15 @@ table tr:hover td {
 
 }
 
+  .pics {
+      width:auto; /* you can use % */
+    height: 550px;
+  }
 
+.box {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}

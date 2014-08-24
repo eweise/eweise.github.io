@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width">
+      <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="http://eweise.github.io/css/normalize.css">
+    <link rel="stylesheet" href="http://eweise.github.io/css/fontello.css">
+
+    <title>Eric Weise - Europe 2014</title>
+      </head>
+    <body>
+    <header class="header container" style="padding-top:0;padding-bottom:0;">
+      <h1 class="header-title">Europe 2014 Pictures</h1>
+    </header>
+        <p/>
+        <div class="box">
+        <table>
+        <tr>
+        <td><a href="#" onclick="previous();return false;"><< Previous</a></td>
+            <td><img id="pic" class="pics" src="img/bestofeuropeLarge/IMG_1.jpg"/></td>
+            <td><a href="#" onclick="next(); return false;">Next >></a></td>
+        </tr>
+        </table>
+            </div> 
+    </body>
+    </html>
+<script style="text/javascript">
+    var index = 1;
+    var maxIndex = 77;
+    function next() {
+        if(index == maxIndex) {
+         index = 1;   
+        }
+        else {
+        index = index + 1;
+        }
+     changeImage("img/bestofeuropeLarge/IMG_"+index + ".jpg");
+    }
+    function previous() {
+        if(index == 1) { 
+            index = maxIndex;
+        }
+        else {
+        index = index - 1;
+        }
+     changeImage("img/bestofeuropeLarge/IMG_"+index + ".jpg");
+    }
+    
+    function changeImage(a) {
+    document.getElementById("pic").src=a;
+     }
+</script>
