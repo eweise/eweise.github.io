@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="US-EN">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
+  <title>Akka Cluster Example</title>
+  <link href="http://eweise.com//css/materialize.min.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link href="http://eweise.com//css/style.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/styles/default.min.css">
+  <style type="text/css">
+  
+    footer.page-footer{background-image: url(http://eweise.com//images/default.png);}
+  
+  </style>
+</head>
+<body>
+  <ul id="slide-out" class="side-nav">
+    <li><a href="http://eweise.com/"><i class="mdi-action-home left"></i>Home<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//categories"><i class="mdi-action-perm-media left"></i>Categories<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//tags"><i class="mdi-action-loyalty left"></i>Tags<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+  </ul>
+  <div id="index-banner" class="parallax-container">
+  <a data-activates="slide-out" class="btn-floating button-collapse" style="top: 5px; left: 5px;"><i class="mdi-navigation-menu"></i></a>
+    <div class="section no-pad-bot">
+      <div class="container">
+        
+        <h1 class="header center teal-text text-lighten-2">Eric Weise</h1>
+        <div class="row center">
+          <h5 class="header col s12 light">Finance and Technology Blog</h5>
+        </div>
+        <div class="row center">
+        
+        
+        
+        
+        
+        
+          <a href="http://eweise.com//index.xml"><img src="http://eweise.com//images/feed-dreamstale27.png"></a>
+        </div>
+      </div>
+    </div>
+    <div class="parallax">
+    
+      <img src="http://eweise.com//images/default.png">
+    
+    </div>
+  </div>
+
+
+
+<div class="container">
+  <div class="section">
+
+    <div class="row">
+      <div class="col s12">
+        <div class="card-panel">
+          <h4>Akka Cluster Example</h4>
+          <p>
+           
+          </p>
+          <p>
+
+<p>Akka provides powerful clustering capabilities but reading through the <a href='http://doc.akka.io/docs/akka/2.3.2/scala/cluster-usage.html'>online docs</a> it may not be obvious how to set it up for your particular needs. For my use case, I wanted to create multiple actors representing a particular service that would run on more that one machine. If one machine failed, actors on other machines could still handle the requests, as in a typical high availability scenario. In addition, I did not want the calling actor to have any knowledge of which machines could handle the request, only that one actor in the cluster would handle it. Akka&rsquo;s provides exactly these capabilities using the DistributedPubSubExtension provided in Akka&rsquo;s contrib module. This article will demonstrate how to create a clustered service using the DistributedPubSubExtension.
+<p>In our example we have two types of actors; a BackendService actor which represents some arbitrary service running in the cluster and a WebService actor which handles http requests and in turn calls a BackendService to perform some work. The BackendService is stateless and there are many running in the cluster. The WebService just need to call any one BackendService to have the work performed.</p>
+
+<h2 id="the-distributedpubsubmediator">The DistributedPubSubMediator</h2>
+
+<p>Both the WebService and the BackEndService create a DistributedPubSubMediator. The DistributedPubSubMediator is an actor that maintains a registry of other ActorRefs and distributes them to peers around the network. This allows clients to refer actors by role instead of by a specific address. It also allows actors to join or leave the cluster and the mediator will track which actors are currently active.</p>
+
+<pre><code class="language-scala">  val mediator = DistributedPubSubExtension(context.system).mediator
+</code></pre>
+
+<h2 id="backend-service-implementation">Backend Service Implementation</h2>
+
+<p>In our BackendServiceActor constructor we simply need to create the mediator and register our actor with it. The mediator will in turn update all its peer mediators in the cluster informing them that our BackendServiceActor has joined the cluster</p>
+
+<pre><code class="language-scala">  mediator ! Put(self)
+</code></pre>
+
+<p>The rest of the BackendActor is a standard Actor implementation where we listen for messages in a receive method</p>
+
+<pre><code class="language-scala">  def receive = {
+    case PerformWork =&gt;
+      log.info(&quot;Backend Service is performing some work&quot;)
+      sender() ! OK
+  }
+</code></pre>
+
+<h2 id="the-web-service">The Web Service</h2>
+
+<p>For our Web service we will use Spray.io which is a library built on top of Akka that provides all the functionality we need to process http requests. To use Spray we create an actor that inherits from the HttpService trait.</p>
+
+<pre><code class="language-scala">   class WebServiceActor extends Actor with HttpService
+</code></pre>
+
+<p>Like in the BackendService actor, we need to create a mediator in the HttpService constructor. Then we can send messages to the BackendService via the mediator</p>
+
+<pre><code class="language-scala">mediator ? Send(&quot;/user/backend-service&quot;, PerformWork, false)
+</code></pre>
+
+<p>As with all actors we need to implement a &lsquo;receive&rsquo; method. Our receive method will provide http routing information to Spray so it knows how to handle requests. Spray provides a DSL for doing this. In our example we implement just one route &ldquo;dowork&rdquo; in order to see our cluster in action</p>
+
+<pre><code class="language-scala">def receive = runRoute {
+    path(&quot;dowork&quot;) {
+      onComplete(mediator ? Send(&quot;/user/backend-service&quot;, PerformWork, false)) {
+        case Success(value) =&gt; complete(&quot;OK&quot;)
+        case Failure(e) =&gt; complete(e.getMessage)
+      }
+    }
+  }
+</code></pre>
+
+<p>##Configuration
+Both services need to provide configuration information to the ActorSystems. In the application.conf file we need to add the extension class</p>
+
+<pre><code>  extensions = [
+    &quot;akka.contrib.pattern.DistributedPubSubExtension&quot;
+  ]
+</code></pre>
+
+<p>You can also configure the PubSubExtension with the following properties</p>
+
+<pre><code>akka.contrib.cluster.pub-sub {
+  # Actor name of the mediator actor, /user/distributedPubSubMediator
+  name = distributedPubSubMediator
+
+  # Start the mediator on members tagged with this role.
+  # All members are used if undefined or empty.
+  role = &quot;&quot;
+
+  # How often the DistributedPubSubMediator should send out gossip information
+  gossip-interval = 1s
+
+  # Removed entries are pruned after this duration
+  removed-time-to-live = 120s
+}
+</code></pre>
+
+<p>##Conclusion
+A complete example that can run is available  <a href="https://github.com/eweise/akka-pubsub-cluster-example">here</a>. Try booting up multiple BackendService instances. You will notice that the router selects actors randomly which is the default but can be changed to other strategies including round-robin. One issue I see in the example is that a delay occurs handling requests when a BackendService leaves the cluster, potentially causing the WebService requests to timeout for a brief time. This could possibly be hardened by adding retry logic into the Webservice. Overall Akka provides an incredible amount of functionality and the contrib module builds on top of the core features to making implementing clustered services almost trivial.</p>
+</p>
+          <p>5 Feb 2014
+            
+          </p>
+          
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large disabled"><i class="mdi-navigation-arrow-back"></i></a>
+      
+      </div>
+      <div class="col s6 m10 center">&nbsp</div>
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large disabled"><i class="mdi-navigation-arrow-forward"></i></a>
+      
+      </div>
+    </div>
+
+  </div>
+</div>
+
+  <footer class="page-footer">
+    <div class="footer-copyright">
+      <div class="container">
+      All rights reserved - 2017
+      <div class="right">Design <a class="grey-text text-lighten-4" href="http://pdevty.github.io/blog/">pdevty</a></div>
+      </div>
+    </div>
+  </footer>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="http://eweise.com//js/materialize.min.js"></script>
+  <script src="http://eweise.com//js/init.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/highlight.min.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', 'UA-79101-12', 'auto');
+    ga('send', 'pageview');
+  </script>
+  
+
+  </body>
+</html>
+
