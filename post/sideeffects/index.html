@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="US-EN">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
+  <title>Pushing Side Effects to the Side</title>
+  <link href="http://eweise.com//css/materialize.min.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link href="http://eweise.com//css/style.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/styles/default.min.css">
+  <style type="text/css">
+  
+    footer.page-footer{background-image: url(http://eweise.com//images/default.png);}
+  
+  </style>
+</head>
+<body>
+  <ul id="slide-out" class="side-nav">
+    <li><a href="http://eweise.com/"><i class="mdi-action-home left"></i>Home<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//categories"><i class="mdi-action-perm-media left"></i>Categories<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//tags"><i class="mdi-action-loyalty left"></i>Tags<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+  </ul>
+  <div id="index-banner" class="parallax-container">
+  <a data-activates="slide-out" class="btn-floating button-collapse" style="top: 5px; left: 5px;"><i class="mdi-navigation-menu"></i></a>
+    <div class="section no-pad-bot">
+      <div class="container">
+        
+        <h1 class="header center teal-text text-lighten-2">Eric Weise</h1>
+        <div class="row center">
+          <h5 class="header col s12 light">Finance and Technology Blog</h5>
+        </div>
+        <div class="row center">
+        
+        
+        
+        
+        
+        
+          <a href="http://eweise.com//index.xml"><img src="http://eweise.com//images/feed-dreamstale27.png"></a>
+        </div>
+      </div>
+    </div>
+    <div class="parallax">
+    
+      <img src="http://eweise.com//images/default.png">
+    
+    </div>
+  </div>
+
+
+
+<div class="container">
+  <div class="section">
+
+    <div class="row">
+      <div class="col s12">
+        <div class="card-panel">
+          <h4>Pushing Side Effects to the Side</h4>
+          <p>
+           
+          </p>
+          <p><p>Functional programming provides a treasure trove of useful patterns. One pattern I want to highlight is pushing side effects to the edges of your application, because this can be applied to any type of program, not just functional ones. Side effects are calls which interact outside of the application&rsquo;s environment. Examples of side effects are making an Http call or persisting data to the database, or even getting the current time. By isolating these types of calls, we can more easily test our application&rsquo;s code in a deterministic manner. This post will provide an example of how to isolate side effects using an example from a refactoring I did recently at work.</p>
+
+<p>The example use case is similar to Google Calendar where events are scheduled according to time. Some of the events are one-time events and some re-occur over a period of time. The recurring events can repeat daily, weekly or monthly forever or for a specified number of times. The initial code implementation looked similar to the following;</p>
+
+<pre><code class="language-java">class EventService {
+
+  public List&lt;RecurringEvent&gt; generateRecurringEvents(RecurringEvent recurringEvent) {
+    List&lt;RecurringEvent&gt; generatedEvents = new ArrayList&lt;&gt;();
+    LocalDate nextDate = recurringEvent.startDate;
+    int generatedCount = 0;
+
+     while(generatedCount &lt; recurringEvent.maxNumber
+           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))) {
+
+        RecurringEvent newEvent = createEvent(recurringEvent, nextDate);
+        entityManager.persist(newEvent);
+        generatedEvents.add(newEvent);
+        generatedCount++;
+        nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);
+    }
+    return generatedEvents;
+  }
+}
+</code></pre>
+
+<p>This code takes a RecurringEvent as an argument and generates more recurring events based on the repeatPattern pattern defined in the original event. The generation stops when either the EndDate or maxNumberOfInstances is reached. To test this method we would need code similar to the following;</p>
+
+<pre><code class="language-java">
+class EventServiceTest extends SpringyTest {
+
+  @Autowired
+  private EntityManager EntityManager
+
+  private EventService eventService = new EventService(entityManager);
+
+  @test
+  public void testGenerateRecurringEvents() {
+    RecurringEvent recurringEvent = RecurringEventFixture.create();
+    List&lt;RecurringEvent&gt; generatedEvents = eventService.generateRecurringEvents(recurringEvents);
+
+    // assert the correct number of events were generated
+    Assert.assertEquals(4, generateEvents.size());
+  }
+
+}
+
+</code></pre>
+
+<p>While the test looks fairly straightforward, it incurs a large performance penalty since we need to wire up the database and any other dependencies in the Spring configuration. On our project, this takes at least 20 seconds which really hurts productivity when trying to work in a TDD fashion.
+If we refactored the code to push side effects outside of our business logic, then we would have much faster and easier to test code. The following refactors the EntityManager outside of the generateRecurringEvents method.</p>
+
+<pre><code class="language-java">class EventService {
+
+  public void generateAndPersistRecurringEvents(RecurringEvent recurringEvent) {
+      List&lt;RecurringEvent&gt; newEvents = generateRecurringEvents(recurringEvent);
+      newEvents.forEach(EntityManager::persist);
+  }
+
+  public List&lt;RecurringEvent&gt; generateRecurringEvents(RecurringEvent recurringEvent) {
+    List&lt;RecurringEvent&gt; generatedEvents = new ArrayList&lt;&gt;();
+    LocalDate nextDate = recurringEvent.startDate;
+    int generatedCount = 0;
+
+     while(generatedCount &lt; recurringEvent.maxNumber
+           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))) {
+
+        RecurringEvent newEvent = createEvent(recurringEvent, nextDate);
+        entityManager.persist(newEvent);
+        generatedEvents.add(newEvent);
+        generatedCount++;
+        nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);
+    }
+    return generatedEvents;
+  }
+}
+</code></pre>
+
+<p>I made a very simple change to remove the side effect <code>EntityManager.persist</code> out of the business logic and into a separate method. Notice that I was also able to change generateRecurringEvents to be static because the method no longer depends on any state other than its inputs. Our test becomes a simple unit test instead of a Spring/database type integration test.</p>
+
+<pre><code class="language-java">class EventServiceTest  {
+
+  @test
+  public void testGenerateRecurringEvents() {
+    RecurringEvent recurringEvent = RecurringEventFixture.create();
+    List&lt;RecurringEvent&gt; generatedEvents = EventService.generateRecurringEvents(recurringEvents);
+
+    // assert the correct number of events were generated
+    Assert.assertEquals(4, generateEvents.size());
+  }
+
+}
+</code></pre>
+
+<p>The change I made may seem a bit obvious but take a look at your codebase. How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on, make no attempt at this. Instead, repository calls are sprinkled throughout the service layer code. In general the pattern is;</p>
+
+<ol>
+<li>Retrieve all the data necessary to perform your business logic (side effect code).</li>
+<li>Perform the business logic using in-memory data (pure functions).</li>
+<li>Persist changes to the database (side effect code).</li>
+</ol>
+
+<p>These three steps can&rsquo;t be followed every time but when it can, the code will be much easier to test.</p>
+</p>
+          <p>12 Jun 2017
+            
+          </p>
+          
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large disabled"><i class="mdi-navigation-arrow-back"></i></a>
+      
+      </div>
+      <div class="col s6 m10 center">&nbsp</div>
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large waves-effect waves-light" href="http://eweise.com/post/akka-cluster-example/"><i class="mdi-navigation-arrow-forward"></i></a>
+      
+      </div>
+    </div>
+
+  </div>
+</div>
+
+  <footer class="page-footer">
+    <div class="footer-copyright">
+      <div class="container">
+      All rights reserved - 2017
+      <div class="right">Design <a class="grey-text text-lighten-4" href="http://pdevty.github.io/blog/">pdevty</a></div>
+      </div>
+    </div>
+  </footer>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="http://eweise.com//js/materialize.min.js"></script>
+  <script src="http://eweise.com//js/init.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/highlight.min.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', 'UA-79101-12', 'auto');
+    ga('send', 'pageview');
+  </script>
+  
+
+  </body>
+</html>
+
