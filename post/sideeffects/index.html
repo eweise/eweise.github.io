@@ -85,7 +85,7 @@
 }
 </code></pre>
 
-<p>This code has some non-trivial conditions that determines how many events to generate. Testing this code would involve checking each of the conditions. At a minimum however, we can test that it generates some events.</p>
+<p>This code has some non-trivial conditions that determines how many events to generate. Testing it would involve checking each of the conditions. At a minimum however, we can test that it generates some events.</p>
 
 <pre><code class="language-java">
 class EventServiceTest extends SpringyTest {
@@ -108,9 +108,9 @@ class EventServiceTest extends SpringyTest {
 
 </code></pre>
 
-<p>While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since we need to wire up a connection pool and any other dependencies in the Spring configuration.</p>
+<p>While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since it needs to wire up a connection pool and any other dependencies in the Spring configuration.</p>
 
-<p>In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic would cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.</p>
+<p>In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic could cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.</p>
 
 <pre><code class="language-java">class EventService {
 
@@ -140,7 +140,7 @@ class EventServiceTest extends SpringyTest {
 }
 </code></pre>
 
-<p>Our test becomes a simple unit test instead of a Spring/database type integration test.</p>
+<p>Our test now becomes a simple unit test instead of a Spring/database type integration test.</p>
 
 <pre><code class="language-java">class EventServiceTest  {
 
@@ -157,7 +157,9 @@ class EventServiceTest extends SpringyTest {
 }
 </code></pre>
 
-<p>How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on sprinkle database calls throughout service layer. In general the pattern I try to follow is;</p>
+<p>How many methods could you turn into simple pure function calls simply by removing side effect calls such as repositories from your business logic? Most projects I have worked on just sprinkle database calls throughout service layer.</p>
+
+<p>In general the pattern I try to follow is;</p>
 
 <ol>
 <li>Retrieve all the data necessary to perform the business logic (side effect code).</li>

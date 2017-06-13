@@ -43,7 +43,7 @@
 }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;This code has some non-trivial conditions that determines how many events to generate. Testing this code would involve checking each of the conditions. At a minimum however, we can test that it generates some events.&lt;/p&gt;
+&lt;p&gt;This code has some non-trivial conditions that determines how many events to generate. Testing it would involve checking each of the conditions. At a minimum however, we can test that it generates some events.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;
 class EventServiceTest extends SpringyTest {
@@ -66,9 +66,9 @@ class EventServiceTest extends SpringyTest {
 
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since we need to wire up a connection pool and any other dependencies in the Spring configuration.&lt;/p&gt;
+&lt;p&gt;While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since it needs to wire up a connection pool and any other dependencies in the Spring configuration.&lt;/p&gt;
 
-&lt;p&gt;In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic would cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.&lt;/p&gt;
+&lt;p&gt;In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic could cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;class EventService {
 
@@ -98,7 +98,7 @@ class EventServiceTest extends SpringyTest {
 }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;Our test becomes a simple unit test instead of a Spring/database type integration test.&lt;/p&gt;
+&lt;p&gt;Our test now becomes a simple unit test instead of a Spring/database type integration test.&lt;/p&gt;
 
 &lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;class EventServiceTest  {
 
@@ -115,7 +115,9 @@ class EventServiceTest extends SpringyTest {
 }
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on sprinkle database calls throughout service layer. In general the pattern I try to follow is;&lt;/p&gt;
+&lt;p&gt;How many methods could you turn into simple pure function calls simply by removing side effect calls such as repositories from your business logic? Most projects I have worked on just sprinkle database calls throughout service layer.&lt;/p&gt;
+
+&lt;p&gt;In general the pattern I try to follow is;&lt;/p&gt;
 
 &lt;ol&gt;
 &lt;li&gt;Retrieve all the data necessary to perform the business logic (side effect code).&lt;/li&gt;
