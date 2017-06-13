@@ -61,7 +61,7 @@
       <p>
        
       </p>
-      <p>Functional programming provides a treasure trove of useful patterns. One pattern I want to highlight is pushing side effects to the edges of your application, because this can be applied to any type of program, not just functional ones. Side effects are calls which interact outside of the application&rsquo;s environment. Examples of side effects are making an Http call or persisting data to the database, or even getting the current time.</p>
+      <p>Functional programming provides a treasure trove of useful patterns, one of which is pushing side effects to the edges of your application. Side effects are functions that have non-deterministic behavior. Examples include making an Http call or persisting data to the database These calls can fail due to network issues or other outside influences. But side effects can also be functions that don&rsquo;t fail such as retrieving the current time or a random number, since they don&rsquo;t always give the same value back.</p>
       <p>
       12 Jun 2017
        

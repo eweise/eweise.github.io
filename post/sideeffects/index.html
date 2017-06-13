@@ -58,21 +58,23 @@
           <p>
            
           </p>
-          <p><p>Functional programming provides a treasure trove of useful patterns. One pattern I want to highlight is pushing side effects to the edges of your application, because this can be applied to any type of program, not just functional ones. Side effects are calls which interact outside of the application&rsquo;s environment. Examples of side effects are making an Http call or persisting data to the database, or even getting the current time. By isolating these types of calls, we can more easily test our application&rsquo;s code in a deterministic manner. This post will provide an example of how to isolate side effects using an example from a refactoring I did recently at work.</p>
+          <p><p>Functional programming provides a treasure trove of useful patterns, one of which is pushing side effects to the edges of your application.  Side effects are functions that have non-deterministic behavior. Examples include making an Http call or persisting data to the database These calls can fail due to network issues or other outside influences. But side effects can also be functions that don&rsquo;t fail such as retrieving the current time or a random number, since they don&rsquo;t always give the same value back. By isolating these types of calls, we can more easily test our code.</p>
 
-<p>The example use case is similar to Google Calendar where events are scheduled according to time. Some of the events are one-time events and some re-occur over a period of time. The recurring events can repeat daily, weekly or monthly forever or for a specified number of times. The initial code implementation looked similar to the following;</p>
+<p>The following is an example loosely based on a refactoring I did at work. The use case is similar to Google Calendar where events re-occur over a period of time or for a number of iterations. An example code snippet from our implementation looked similar to the following;</p>
 
 <pre><code class="language-java">class EventService {
 
-  public List&lt;RecurringEvent&gt; generateRecurringEvents(RecurringEvent recurringEvent) {
-    List&lt;RecurringEvent&gt; generatedEvents = new ArrayList&lt;&gt;();
+  public List&lt;RecurringEvent&gt; generateEvents(RecurringEvent recurringEvent) {
+    List&lt;Event&gt; generatedEvents = new ArrayList&lt;&gt;();
     LocalDate nextDate = recurringEvent.startDate;
     int generatedCount = 0;
+    LocalDate maximumDate = Local.now().plusDays(180);
 
      while(generatedCount &lt; recurringEvent.maxNumber
-           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))) {
+           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))
+           &amp;&amp; !nextDate.isAfter maximumDate) {
 
-        RecurringEvent newEvent = createEvent(recurringEvent, nextDate);
+        Event newEvent = createEvent(recurringEvent, nextDate);
         entityManager.persist(newEvent);
         generatedEvents.add(newEvent);
         generatedCount++;
@@ -83,7 +85,7 @@
 }
 </code></pre>
 
-<p>This code takes a RecurringEvent as an argument and generates more recurring events based on the repeatPattern pattern defined in the original event. The generation stops when either the EndDate or maxNumberOfInstances is reached. To test this method we would need code similar to the following;</p>
+<p>This code has some non-trivial conditions that determines how many events to generate. Testing this code would involve checking each of the conditions. At a minimum however, we can test that it generates some events.</p>
 
 <pre><code class="language-java">
 class EventServiceTest extends SpringyTest {
@@ -94,9 +96,9 @@ class EventServiceTest extends SpringyTest {
   private EventService eventService = new EventService(entityManager);
 
   @test
-  public void testGenerateRecurringEvents() {
+  public void testgenerateEvents() {
     RecurringEvent recurringEvent = RecurringEventFixture.create();
-    List&lt;RecurringEvent&gt; generatedEvents = eventService.generateRecurringEvents(recurringEvents);
+    List&lt;Event&gt; generatedEvents = eventService.generateEvents(recurringEvents);
 
     // assert the correct number of events were generated
     Assert.assertEquals(4, generateEvents.size());
@@ -106,25 +108,28 @@ class EventServiceTest extends SpringyTest {
 
 </code></pre>
 
-<p>While the test looks fairly straightforward, it incurs a large performance penalty since we need to wire up the database and any other dependencies in the Spring configuration. On our project, this takes at least 20 seconds which really hurts productivity when trying to work in a TDD fashion.
-If we refactored the code to push side effects outside of our business logic, then we would have much faster and easier to test code. The following refactors the EntityManager outside of the generateRecurringEvents method.</p>
+<p>While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since we need to wire up a connection pool and any other dependencies in the Spring configuration.</p>
+
+<p>In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic would cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.</p>
 
 <pre><code class="language-java">class EventService {
 
   public void generateAndPersistRecurringEvents(RecurringEvent recurringEvent) {
-      List&lt;RecurringEvent&gt; newEvents = generateRecurringEvents(recurringEvent);
+      List&lt;RecurringEvent&gt; newEvents = generateEvents(recurringEvent, LocalDate.now());
       newEvents.forEach(EntityManager::persist);
   }
 
-  public List&lt;RecurringEvent&gt; generateRecurringEvents(RecurringEvent recurringEvent) {
-    List&lt;RecurringEvent&gt; generatedEvents = new ArrayList&lt;&gt;();
+  public List&lt;RecurringEvent&gt; generateEvents(RecurringEvent recurringEvent, LocalDate currentDate) {
+    List&lt;Event&gt; generatedEvents = new ArrayList&lt;&gt;();
     LocalDate nextDate = recurringEvent.startDate;
     int generatedCount = 0;
+    LocalDate maximumDate = currentDate.plusDays(180);
 
      while(generatedCount &lt; recurringEvent.maxNumber
-           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))) {
+           &amp;&amp; !nextDate.isAfter(recurringEvent.endDate))
+           &amp;&amp; !nextDate.isAfter maximumDate) {
 
-        RecurringEvent newEvent = createEvent(recurringEvent, nextDate);
+        Event newEvent = createEvent(recurringEvent, nextDate);
         entityManager.persist(newEvent);
         generatedEvents.add(newEvent);
         generatedCount++;
@@ -135,14 +140,15 @@ If we refactored the code to push side effects outside of our business logic, th
 }
 </code></pre>
 
-<p>I made a very simple change to remove the side effect <code>EntityManager.persist</code> out of the business logic and into a separate method. Notice that I was also able to change generateRecurringEvents to be static because the method no longer depends on any state other than its inputs. Our test becomes a simple unit test instead of a Spring/database type integration test.</p>
+<p>Our test becomes a simple unit test instead of a Spring/database type integration test.</p>
 
 <pre><code class="language-java">class EventServiceTest  {
 
   @test
-  public void testGenerateRecurringEvents() {
+  public void testGenerateEvents() {
     RecurringEvent recurringEvent = RecurringEventFixture.create();
-    List&lt;RecurringEvent&gt; generatedEvents = EventService.generateRecurringEvents(recurringEvents);
+    LocalDate today = LocalDate.of(2017, 1, 1);
+    List&lt;RecurringEvent&gt; generatedEvents = EventService.generateEvents(recurringEvent, today);
 
     // assert the correct number of events were generated
     Assert.assertEquals(4, generateEvents.size());
@@ -151,15 +157,15 @@ If we refactored the code to push side effects outside of our business logic, th
 }
 </code></pre>
 
-<p>The change I made may seem a bit obvious but take a look at your codebase. How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on, make no attempt at this. Instead, repository calls are sprinkled throughout the service layer code. In general the pattern is;</p>
+<p>How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on sprinkle database calls throughout service layer. In general the pattern I try to follow is;</p>
 
 <ol>
-<li>Retrieve all the data necessary to perform your business logic (side effect code).</li>
+<li>Retrieve all the data necessary to perform the business logic (side effect code).</li>
 <li>Perform the business logic using in-memory data (pure functions).</li>
 <li>Persist changes to the database (side effect code).</li>
 </ol>
 
-<p>These three steps can&rsquo;t be followed every time but when it can, the code will be much easier to test.</p>
+<p>These three steps can&rsquo;t be followed every time but when they can, the code will be much easier to test.</p>
 </p>
           <p>12 Jun 2017
             

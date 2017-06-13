@@ -7,8 +7,125 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>US-EN</language>
     <copyright>All rights reserved - 2017</copyright>
-    <lastBuildDate>Wed, 05 Feb 2014 22:00:06 -0800</lastBuildDate>
+    <lastBuildDate>Mon, 12 Jun 2017 22:00:06 -0800</lastBuildDate>
     <atom:link href="http://eweise.com/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Pushing Side Effects to the Side</title>
+      <link>http://eweise.com/post/sideeffects/</link>
+      <pubDate>Mon, 12 Jun 2017 22:00:06 -0800</pubDate>
+      
+      <guid>http://eweise.com/post/sideeffects/</guid>
+      <description>&lt;p&gt;Functional programming provides a treasure trove of useful patterns, one of which is pushing side effects to the edges of your application.  Side effects are functions that have non-deterministic behavior. Examples include making an Http call or persisting data to the database These calls can fail due to network issues or other outside influences. But side effects can also be functions that don&amp;rsquo;t fail such as retrieving the current time or a random number, since they don&amp;rsquo;t always give the same value back. By isolating these types of calls, we can more easily test our code.&lt;/p&gt;
+
+&lt;p&gt;The following is an example loosely based on a refactoring I did at work. The use case is similar to Google Calendar where events re-occur over a period of time or for a number of iterations. An example code snippet from our implementation looked similar to the following;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;class EventService {
+
+  public List&amp;lt;RecurringEvent&amp;gt; generateEvents(RecurringEvent recurringEvent) {
+    List&amp;lt;Event&amp;gt; generatedEvents = new ArrayList&amp;lt;&amp;gt;();
+    LocalDate nextDate = recurringEvent.startDate;
+    int generatedCount = 0;
+    LocalDate maximumDate = Local.now().plusDays(180);
+
+     while(generatedCount &amp;lt; recurringEvent.maxNumber
+           &amp;amp;&amp;amp; !nextDate.isAfter(recurringEvent.endDate))
+           &amp;amp;&amp;amp; !nextDate.isAfter maximumDate) {
+
+        Event newEvent = createEvent(recurringEvent, nextDate);
+        entityManager.persist(newEvent);
+        generatedEvents.add(newEvent);
+        generatedCount++;
+        nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);
+    }
+    return generatedEvents;
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This code has some non-trivial conditions that determines how many events to generate. Testing this code would involve checking each of the conditions. At a minimum however, we can test that it generates some events.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;
+class EventServiceTest extends SpringyTest {
+
+  @Autowired
+  private EntityManager EntityManager
+
+  private EventService eventService = new EventService(entityManager);
+
+  @test
+  public void testgenerateEvents() {
+    RecurringEvent recurringEvent = RecurringEventFixture.create();
+    List&amp;lt;Event&amp;gt; generatedEvents = eventService.generateEvents(recurringEvents);
+
+    // assert the correct number of events were generated
+    Assert.assertEquals(4, generateEvents.size());
+  }
+
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;While the test looks fairly straightforward, it is actually complex because it needs to connect to a database in order to succeed. We need to ensure that the database starts and ends in a clean state and that no other tests interfere with the data while the test is running. Otherwise, we may get a different result or db related failure. The test also incurs a large performance penalty since we need to wire up a connection pool and any other dependencies in the Spring configuration.&lt;/p&gt;
+
+&lt;p&gt;In the refactored code, the EntityManager.persist call is removed from the business logic. Notice that the LocalDate.now call is also removed. Remember that we want to always get the same result given the same method argument. Having the current date directly in the business logic would cause the function to behave differently depending on what day it is. Have you ever had tests that worked fine most days but failed at the beginning or end of the month? Moving the dates outside of the business logic should help.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;class EventService {
+
+  public void generateAndPersistRecurringEvents(RecurringEvent recurringEvent) {
+      List&amp;lt;RecurringEvent&amp;gt; newEvents = generateEvents(recurringEvent, LocalDate.now());
+      newEvents.forEach(EntityManager::persist);
+  }
+
+  public List&amp;lt;RecurringEvent&amp;gt; generateEvents(RecurringEvent recurringEvent, LocalDate currentDate) {
+    List&amp;lt;Event&amp;gt; generatedEvents = new ArrayList&amp;lt;&amp;gt;();
+    LocalDate nextDate = recurringEvent.startDate;
+    int generatedCount = 0;
+    LocalDate maximumDate = currentDate.plusDays(180);
+
+     while(generatedCount &amp;lt; recurringEvent.maxNumber
+           &amp;amp;&amp;amp; !nextDate.isAfter(recurringEvent.endDate))
+           &amp;amp;&amp;amp; !nextDate.isAfter maximumDate) {
+
+        Event newEvent = createEvent(recurringEvent, nextDate);
+        entityManager.persist(newEvent);
+        generatedEvents.add(newEvent);
+        generatedCount++;
+        nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);
+    }
+    return generatedEvents;
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Our test becomes a simple unit test instead of a Spring/database type integration test.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;class EventServiceTest  {
+
+  @test
+  public void testGenerateEvents() {
+    RecurringEvent recurringEvent = RecurringEventFixture.create();
+    LocalDate today = LocalDate.of(2017, 1, 1);
+    List&amp;lt;RecurringEvent&amp;gt; generatedEvents = EventService.generateEvents(recurringEvent, today);
+
+    // assert the correct number of events were generated
+    Assert.assertEquals(4, generateEvents.size());
+  }
+
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;How many methods could you turn into simple pure function calls by simply removing side effect calls such as repositories from your business logic? Most projects I have worked on sprinkle database calls throughout service layer. In general the pattern I try to follow is;&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;Retrieve all the data necessary to perform the business logic (side effect code).&lt;/li&gt;
+&lt;li&gt;Perform the business logic using in-memory data (pure functions).&lt;/li&gt;
+&lt;li&gt;Persist changes to the database (side effect code).&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;These three steps can&amp;rsquo;t be followed every time but when they can, the code will be much easier to test.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Akka Cluster Example</title>
