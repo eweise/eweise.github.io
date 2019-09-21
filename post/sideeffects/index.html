@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="US-EN">
+<html lang="en-US">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
@@ -91,7 +91,7 @@
 class EventServiceTest extends SpringyTest {
 
   @Autowired
-  private EntityManager EntityManager
+  private EntityManager EntityManager;
 
   private EventService eventService = new EventService(entityManager);
 
@@ -130,7 +130,6 @@ class EventServiceTest extends SpringyTest {
            &amp;&amp; !nextDate.isAfter maximumDate) {
 
         Event newEvent = createEvent(recurringEvent, nextDate);
-        entityManager.persist(newEvent);
         generatedEvents.add(newEvent);
         generatedCount++;
         nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);

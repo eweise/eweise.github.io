@@ -5,7 +5,7 @@
     <link>http://eweise.com/post/index.xml</link>
     <description>Recent content in Post-rsses on Eric Weise</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>US-EN</language>
+    <language>en-US</language>
     <copyright>All rights reserved - 2017</copyright>
     <lastBuildDate>Mon, 12 Jun 2017 22:00:06 -0800</lastBuildDate>
     <atom:link href="http://eweise.com/post/index.xml" rel="self" type="application/rss+xml" />
@@ -49,7 +49,7 @@
 class EventServiceTest extends SpringyTest {
 
   @Autowired
-  private EntityManager EntityManager
+  private EntityManager EntityManager;
 
   private EventService eventService = new EventService(entityManager);
 
@@ -88,7 +88,6 @@ class EventServiceTest extends SpringyTest {
            &amp;amp;&amp;amp; !nextDate.isAfter maximumDate) {
 
         Event newEvent = createEvent(recurringEvent, nextDate);
-        entityManager.persist(newEvent);
         generatedEvents.add(newEvent);
         generatedCount++;
         nextDate = Recurrence.nextDate(nextDate, recurringEvents.repeatPattern);
