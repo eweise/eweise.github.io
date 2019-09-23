@@ -5,10 +5,101 @@
     <link>http://eweise.com/index.xml</link>
     <description>Recent content on Eric Weise</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>en-US</language>
+    <language>US-EN</language>
     <copyright>All rights reserved - 2017</copyright>
-    <lastBuildDate>Mon, 12 Jun 2017 22:00:06 -0800</lastBuildDate>
+    <lastBuildDate>Wed, 18 Sep 2019 22:00:06 -0800</lastBuildDate>
     <atom:link href="http://eweise.com/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>Category Theory in Kotlin - Monoids</title>
+      <link>http://eweise.com/post/category-into/</link>
+      <pubDate>Wed, 18 Sep 2019 22:00:06 -0800</pubDate>
+      
+      <guid>http://eweise.com/post/category-into/</guid>
+      <description>
+
+&lt;h2 id=&#34;introduction&#34;&gt;Introduction&lt;/h2&gt;
+
+&lt;p&gt;I am starting a series of blog posts pertaining to a book that I am reading called &lt;a href=&#34;https://github.com/hmemcpy/milewski-ctfp-pdf&#34;&gt;Category Theory for Programmers&lt;/a&gt; by Bartosz Milewski.
+Bartosz has already done a series a &lt;a href=&#34;https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface&#34;&gt;posts&lt;/a&gt; on the topics in the book so instead of covering the same ground, my posts will be specifically about implementing the various category pattern in kotlin.
+I will try to make them as easy to understand as possible and provide useful examples.
+I won&amp;rsquo;t go into detail about actual category theory because the book does a much better job of that.
+I will just take a look at the pattern itself and explain why its useful and show an example in Kotlin&lt;/p&gt;
+
+&lt;h2 id=&#34;monoids&#34;&gt;Monoids&lt;/h2&gt;
+
+&lt;p&gt;Monoid is our first pattern.  The name sounds like some disease you might catch or aliens from another planet.
+But like most names from category theory, it might sound a bit intimidating but the actual pattern is simple to understand.
+Let&amp;rsquo;s take a look at what a Monoid is&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;interface Monoid&amp;lt;T&amp;gt;{
+    fun combine(t1:T, t2:T):T
+    fun empty():T
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;There are two methods. The first is &lt;em&gt;combine&lt;/em&gt; and it does pretty much what it says. It combines two values represented by &lt;em&gt;&amp;lt;T&amp;gt;&lt;/em&gt;.
+The next function &lt;em&gt;empty&lt;/em&gt; is less obvious. It takes no parameters and just returns a &lt;em&gt;T&lt;/em&gt;.
+The return value however, need to represent a value that when &lt;em&gt;combined&lt;/em&gt; with another &lt;em&gt;T&lt;/em&gt;, will not change the other value.
+For example if I combine the value 3 with the value 0 then the result still 3.&lt;/p&gt;
+
+&lt;p&gt;There is one more aspect to Monoid and category theory patterns in general. In addition to specifying an interface, they also have laws.
+The law with Monoid is that the combine function must be associative, meaning that if I combine values A and B first and then combine that result with C,
+it should be the same as combining values B and C first and then combining A with that result. The order of precedence can change without changing the result.
+In math terms we say: (A + B) + C = A + (B + C). This law can&amp;rsquo;t be enforced by the compiler but users of your Monoid will expect it to be true.&lt;/p&gt;
+
+&lt;p&gt;Let&amp;rsquo;s see the power of monoids by applying the pattern to a custom data type Money. Here is our simple Money type&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;data class Money(val value: BigDecimal) {
+    constructor(strValue: String) : this(BigDecimal(strValue))
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;It would be great if we could add our money so let&amp;rsquo;s create a Money Monoid.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;object MoneyMonoid : Monoid&amp;lt;Money&amp;gt; {
+    override fun combine(v1: Money, v2: Money): Money {
+        return Money(v1.value.plus(v2.value))
+    }
+
+    override fun empty(): Money {
+        return Money(BigDecimal.ZERO)
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Notice that the empty() method is implemented by returning the value 0.&lt;/p&gt;
+
+&lt;p&gt;Here is an example of our MoneyMonoid in action&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;assert(MoneyMonoid.combine(Money(&amp;quot;1&amp;quot;), Money(&amp;quot;2&amp;quot;)) == Money(&amp;quot;3&amp;quot;))
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The MoneyMonoid succesfully added 1 + 2 to equal 3.
+OK that&amp;rsquo;s not so impressive since we could have just directly put an add function on the Money class.
+The power of the abstraction however, can be demonstrated by building additional functionality on top of Monoid.
+For instance, we can now create an extension method &lt;em&gt;fold&lt;/em&gt; that combines any number of Monoids.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;fun &amp;lt;T&amp;gt; Monoid&amp;lt;T&amp;gt;.fold(ts:List&amp;lt;T&amp;gt;):T {
+    return ts.foldRight(this.empty()) { t: T, accumulator: T -&amp;gt; this.combine(t, accumulator) }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Notice that the &lt;em&gt;fold&lt;/em&gt; function could be used with any Monoid, not just MoneyMonoid.&lt;/p&gt;
+
+&lt;p&gt;Now we can use this generic fold method to sum all our money&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;val listOfMoney = listOf( Money(&amp;quot;1&amp;quot;),Money(&amp;quot;2&amp;quot;),Money(&amp;quot;3&amp;quot;) )
+
+assert(MoneyMonoid.fold(listOfMoney) == Money(&amp;quot;6&amp;quot;))
+
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We defined a very generic concept &lt;em&gt;combining&lt;/em&gt; and were able to build upon it to create additional functionality.
+ category theory patterns are all very generic and sometimes very abstract.
+ They are built using interfaces but also have laws that must be enforced by each implementation.&lt;/p&gt;
+</description>
+    </item>
     
     <item>
       <title>Pushing Side Effects to the Side</title>

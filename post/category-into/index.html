@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="US-EN">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no"/>
+  <title>Category Theory in Kotlin - Monoids</title>
+  <link href="http://eweise.com//css/materialize.min.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link href="http://eweise.com//css/style.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/styles/default.min.css">
+  <style type="text/css">
+  
+    footer.page-footer{background-image: url(http://eweise.com//images/default.png);}
+  
+  </style>
+</head>
+<body>
+  <ul id="slide-out" class="side-nav">
+    <li><a href="http://eweise.com/"><i class="mdi-action-home left"></i>Home<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//categories"><i class="mdi-action-perm-media left"></i>Categories<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+    <li><a href="http://eweise.com//tags"><i class="mdi-action-loyalty left"></i>Tags<i class="mdi-hardware-keyboard-arrow-right right"></i></a></li>
+  </ul>
+  <div id="index-banner" class="parallax-container">
+  <a data-activates="slide-out" class="btn-floating button-collapse" style="top: 5px; left: 5px;"><i class="mdi-navigation-menu"></i></a>
+    <div class="section no-pad-bot">
+      <div class="container">
+        
+        <h1 class="header center teal-text text-lighten-2">Eric Weise</h1>
+        <div class="row center">
+          <h5 class="header col s12 light">Finance and Technology Blog</h5>
+        </div>
+        <div class="row center">
+        
+        
+        
+        
+        
+        
+          <a href="http://eweise.com//index.xml"><img src="http://eweise.com//images/feed-dreamstale27.png"></a>
+        </div>
+      </div>
+    </div>
+    <div class="parallax">
+    
+      <img src="http://eweise.com//images/default.png">
+    
+    </div>
+  </div>
+
+
+
+<div class="container">
+  <div class="section">
+
+    <div class="row">
+      <div class="col s12">
+        <div class="card-panel">
+          <h4>Category Theory in Kotlin - Monoids</h4>
+          <p>
+           
+          </p>
+          <p>
+
+<h2 id="introduction">Introduction</h2>
+
+<p>I am starting a series of blog posts pertaining to a book that I am reading called <a href="https://github.com/hmemcpy/milewski-ctfp-pdf">Category Theory for Programmers</a> by Bartosz Milewski.
+Bartosz has already done a series a <a href="https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface">posts</a> on the topics in the book so instead of covering the same ground, my posts will be specifically about implementing the various category pattern in kotlin.
+I will try to make them as easy to understand as possible and provide useful examples.
+I won&rsquo;t go into detail about actual category theory because the book does a much better job of that.
+I will just take a look at the pattern itself and explain why its useful and show an example in Kotlin</p>
+
+<h2 id="monoids">Monoids</h2>
+
+<p>Monoid is our first pattern.  The name sounds like some disease you might catch or aliens from another planet.
+But like most names from category theory, it might sound a bit intimidating but the actual pattern is simple to understand.
+Let&rsquo;s take a look at what a Monoid is</p>
+
+<pre><code class="language-java">interface Monoid&lt;T&gt;{
+    fun combine(t1:T, t2:T):T
+    fun empty():T
+}
+</code></pre>
+
+<p>There are two methods. The first is <em>combine</em> and it does pretty much what it says. It combines two values represented by <em>&lt;T&gt;</em>.
+The next function <em>empty</em> is less obvious. It takes no parameters and just returns a <em>T</em>.
+The return value however, need to represent a value that when <em>combined</em> with another <em>T</em>, will not change the other value.
+For example if I combine the value 3 with the value 0 then the result still 3.</p>
+
+<p>There is one more aspect to Monoid and category theory patterns in general. In addition to specifying an interface, they also have laws.
+The law with Monoid is that the combine function must be associative, meaning that if I combine values A and B first and then combine that result with C,
+it should be the same as combining values B and C first and then combining A with that result. The order of precedence can change without changing the result.
+In math terms we say: (A + B) + C = A + (B + C). This law can&rsquo;t be enforced by the compiler but users of your Monoid will expect it to be true.</p>
+
+<p>Let&rsquo;s see the power of monoids by applying the pattern to a custom data type Money. Here is our simple Money type</p>
+
+<pre><code class="language-java">data class Money(val value: BigDecimal) {
+    constructor(strValue: String) : this(BigDecimal(strValue))
+}
+</code></pre>
+
+<p>It would be great if we could add our money so let&rsquo;s create a Money Monoid.</p>
+
+<pre><code class="language-java">object MoneyMonoid : Monoid&lt;Money&gt; {
+    override fun combine(v1: Money, v2: Money): Money {
+        return Money(v1.value.plus(v2.value))
+    }
+
+    override fun empty(): Money {
+        return Money(BigDecimal.ZERO)
+    }
+}
+</code></pre>
+
+<p>Notice that the empty() method is implemented by returning the value 0.</p>
+
+<p>Here is an example of our MoneyMonoid in action</p>
+
+<pre><code class="language-java">assert(MoneyMonoid.combine(Money(&quot;1&quot;), Money(&quot;2&quot;)) == Money(&quot;3&quot;))
+</code></pre>
+
+<p>The MoneyMonoid succesfully added 1 + 2 to equal 3.
+OK that&rsquo;s not so impressive since we could have just directly put an add function on the Money class.
+The power of the abstraction however, can be demonstrated by building additional functionality on top of Monoid.
+For instance, we can now create an extension method <em>fold</em> that combines any number of Monoids.</p>
+
+<pre><code class="language-java">fun &lt;T&gt; Monoid&lt;T&gt;.fold(ts:List&lt;T&gt;):T {
+    return ts.foldRight(this.empty()) { t: T, accumulator: T -&gt; this.combine(t, accumulator) }
+}
+</code></pre>
+
+<p>Notice that the <em>fold</em> function could be used with any Monoid, not just MoneyMonoid.</p>
+
+<p>Now we can use this generic fold method to sum all our money</p>
+
+<pre><code class="language-java">val listOfMoney = listOf( Money(&quot;1&quot;),Money(&quot;2&quot;),Money(&quot;3&quot;) )
+
+assert(MoneyMonoid.fold(listOfMoney) == Money(&quot;6&quot;))
+
+</code></pre>
+
+<p>We defined a very generic concept <em>combining</em> and were able to build upon it to create additional functionality.
+ category theory patterns are all very generic and sometimes very abstract.
+ They are built using interfaces but also have laws that must be enforced by each implementation.</p>
+</p>
+          <p>18 Sep 2019
+            
+          </p>
+          
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large disabled"><i class="mdi-navigation-arrow-back"></i></a>
+      
+      </div>
+      <div class="col s6 m10 center">&nbsp</div>
+      <div class="col s3 m1">
+      
+        <a class="btn-floating btn-large waves-effect waves-light" href="http://eweise.com/post/sideeffects/"><i class="mdi-navigation-arrow-forward"></i></a>
+      
+      </div>
+    </div>
+
+  </div>
+</div>
+
+  <footer class="page-footer">
+    <div class="footer-copyright">
+      <div class="container">
+      All rights reserved - 2017
+      <div class="right">Design <a class="grey-text text-lighten-4" href="http://pdevty.github.io/blog/">pdevty</a></div>
+      </div>
+    </div>
+  </footer>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="http://eweise.com//js/materialize.min.js"></script>
+  <script src="http://eweise.com//js/init.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.6/highlight.min.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', 'UA-79101-12', 'auto');
+    ga('send', 'pageview');
+  </script>
+  
+
+  </body>
+</html>
+
